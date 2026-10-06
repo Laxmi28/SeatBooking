@@ -6,6 +6,8 @@ import com.booking.event.service.ReservationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/shows")
 public class ReservationController {
@@ -25,6 +27,14 @@ public class ReservationController {
             @RequestBody ReserveRequest request
             ){
         return reservationService.reserve(showId,userId,request,idempotencyKey);
+    }
+
+    @DeleteMapping("/reservations/{reservationId}")
+    public void cancelReservation(
+            @PathVariable UUID reservationId,
+            @RequestHeader("X-User-Id") String userId
+    ){
+        reservationService.cancelReservation(reservationId,userId);
     }
 
 

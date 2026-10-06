@@ -1,6 +1,7 @@
 package com.booking.event.repository;
 
 import com.booking.event.entity.Seat;
+import com.booking.event.entity.SeatStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -25,5 +26,5 @@ public interface SeatRepository extends JpaRepository<Seat,Long> {
     Optional<Seat>  findByShowIdAndSeatNumber(Long showId , String seatNumber);
 
 
-
+    long countByShowIdAndStatus(Long showId, SeatStatus seatStatus);
 }

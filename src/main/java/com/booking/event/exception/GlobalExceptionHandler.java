@@ -32,7 +32,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ErrorResponse handleBadRequest(IllegalAccessException ex){
+    public ErrorResponse handleBadRequest(IllegalArgumentException ex){
         return  new ErrorResponse(400,
                 "BAD_REQUEST",
                 ex.getMessage(),

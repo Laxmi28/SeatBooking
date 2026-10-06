@@ -5,14 +5,13 @@ import com.booking.event.dto.ReserveRequest;
 import com.booking.event.entity.*;
 import com.booking.event.exception.ConflictException;
 import com.booking.event.exception.NotFoundException;
+import com.booking.event.metrics.ReservationMetrics;
 import com.booking.event.repository.*;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 public class ReservationService {
@@ -23,15 +22,19 @@ public class ReservationService {
     private final ReservationSeatRepository reservationSeatRepository;
     private final UserShowBookingCountRepository bookingCountRepository;
     private final IdempotencyRecordRepository idempotencyRecordRepository;
-
+    private final ReservationMetrics reservationMetrics;
+    private final ShowMetricsService showMetricsService;
     public ReservationService(
             ShowRepository showRepository,
+            ShowMetricsService showMetricsService,
             SeatRepository seatRepository,
             ReservationRepository reservationRepository,
             ReservationSeatRepository reservationSeatRepository,
             UserShowBookingCountRepository bookingCountRepository,
-            IdempotencyRecordRepository idempotencyRecordRepository) {
-
+            IdempotencyRecordRepository idempotencyRecordRepository,
+            ReservationMetrics reservationMetrics) {
+                this.reservationMetrics = reservationMetrics;
+                this.showMetricsService = showMetricsService;
                 this.showRepository = showRepository;
                 this.seatRepository = seatRepository;
                 this.reservationRepository = reservationRepository;
@@ -71,22 +74,31 @@ public class ReservationService {
          int requestedSeats = request.seats().size();
 
          if( bookingCount.getSeatCount() + requestedSeats  > show.getPerUserLimit()){
+             reservationMetrics.bookingLimitExceeded();
              throw  new ConflictException("Per-user booking limit exceeded. Maximum allowed: " + show.getPerUserLimit());
          }
 
-         List<Seat> lockedSeats = new ArrayList<>();
 
-         for( String seatNumber : request.seats()){
+        List<Seat> requestedSeatsList = new ArrayList<>();
 
-             Seat seat = seatRepository
-                     .findByShowIdAndSeatNumber(showId,seatNumber)
-                     .orElseThrow(() -> new NotFoundException("Seat not found : " + seatNumber));
+        for(String seatNumber : request.seats()){
+
+            Seat seat = seatRepository.findByShowIdAndSeatNumber(showId,seatNumber)
+                    .orElseThrow(() -> new NotFoundException("Seat not found : " + seatNumber));
+            requestedSeatsList.add(seat);
+        }
+        //acquiring the Lock in deterministic order
+        requestedSeatsList.sort(Comparator.comparing(Seat::getId));
+        List<Seat> lockedSeats = new ArrayList<>();
+
+         for( Seat seat : requestedSeatsList){
 
              Seat lockedSeat = seatRepository.findByIdForUpdate(seat.getId())
-                     .orElseThrow(() -> new NotFoundException("Seat not found : " + seatNumber));
+                     .orElseThrow(() -> new NotFoundException("Seat not found : " + seat.getSeatNumber()));
 
              if ( lockedSeat.getStatus() != SeatStatus.AVAILABLE){
-                 throw  new ConflictException("Seat already taken : " + seatNumber);
+                 reservationMetrics.seatTaken();
+                 throw  new ConflictException("Seat already taken : " + seat.getSeatNumber());
              }
 
              lockedSeats.add(lockedSeat);
@@ -134,6 +146,9 @@ public class ReservationService {
 
         bookingCount.increment(lockedSeats.size());
         bookingCountRepository.save(bookingCount);
+        reservationMetrics.reservationConfirmed();
+        showMetricsService.updateAvailableSeats(showId);
+
 
 
         return buildReservationResponse(reservationId);
@@ -147,6 +162,11 @@ public class ReservationService {
 
         if(idempotencyKey == null || idempotencyKey.isBlank()){
             throw  new IllegalArgumentException("Idempotency key is required");
+        }
+
+        Set<String> uniqueSeats = new HashSet<>(request.seats());
+        if(uniqueSeats.size() != request.seats().size()){
+            throw new IllegalArgumentException("Duplicate seats are not allowed");
         }
     }
     private String generateRequestHash(ReserveRequest request) {
@@ -201,6 +221,7 @@ public class ReservationService {
                 reservation.getStatus().name());
     }
 
+    @Transactional
     public void cancelReservation(UUID reservationId , String userId){
 
         Reservation reservation = reservationRepository.findById(reservationId)
@@ -237,6 +258,8 @@ public class ReservationService {
         bookingCount.decrement(reservationSeats.size());
 
         bookingCountRepository.save(bookingCount);
+        reservationMetrics.reservationCancelled();
+        showMetricsService.updateAvailableSeats(reservation.getShow().getId());
     }
 
 }
