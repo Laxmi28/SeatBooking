@@ -20,10 +20,10 @@ public class UserShowBookingCount {
     @Column(name = "seat_count", nullable = false)
     private Integer seatCount = 0;
 
-    public void increament( int seats){
+    public void increment( int seats){
         seatCount += seats;
     }
-    public  void decreament( int seats){
+    public  void decrement( int seats){
         seatCount -=seats;
     }
 

@@ -26,7 +26,7 @@ public class Reservation {
     private Long amountPaise;
     @Column(name = "created_at" , nullable = false)
     private OffsetDateTime createdAt;
-    @Column(name = "cancelled_at" , nullable = false)
+    @Column(name = "cancelled_at" )
     private OffsetDateTime cancelledAt;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

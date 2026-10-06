@@ -1,12 +1,14 @@
 package com.booking.event.entity;
 
 import jakarta.persistence.*;
+import lombok.Data;
 
 import java.util.UUID;
 
 @Entity
 @Table( name = "reservation_seats")
 @IdClass(ReservationSeatId.class)
+@Data
 public class ReservationSeat {
 
     @Id
