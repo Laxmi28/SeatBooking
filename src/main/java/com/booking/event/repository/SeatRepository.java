@@ -27,4 +27,6 @@ public interface SeatRepository extends JpaRepository<Seat,Long> {
 
 
     long countByShowIdAndStatus(Long showId, SeatStatus seatStatus);
+
+    List<Seat> findByShowId(Long showId);
 }
